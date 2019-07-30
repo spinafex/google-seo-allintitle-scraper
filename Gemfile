@@ -2,10 +2,10 @@ source 'https://rubygems.org'
 
 gem 'rails', '4.2.0'
 gem 'nokogiri'
-gem 'heroku'
+# gem 'heroku'
 gem 'will_paginate', '~> 3.0.4'
 gem 'will_paginate-bootstrap', '~> 1.0.1'
-
+gem 'rest-client'
 group :assets do
 	gem 'uglifier', '>= 1.0.3'
 	gem 'sass-rails'
@@ -16,7 +16,7 @@ group :assets do
 end
 
 group :development, :test do
-  gem 'sqlite3'
+  gem 'sqlite3', '~> 1.3.6'
 end
 
 group :production do
