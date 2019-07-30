@@ -1,10 +1,10 @@
 class Keyword < ActiveRecord::Base
-  
+
   validates :word, uniqueness: true
   # validates :favorite, presence: true
-  
+
   has_many :title_results, dependent: :destroy
-  
+
   @@base_url = "http://www.google.com/search?q=allintitle:"
   @@quotes = "%22"
   @@competition_levels = {
@@ -14,29 +14,29 @@ class Keyword < ActiveRecord::Base
     medium: 3,
     high: 4
   }
-  
+
   def self.base_url
     @@base_url
   end
-  
+
   def self.quotes
     @@quotes
   end
-  
+
   def self.competition_levels
     @@competition_levels
   end
-  
+
   def self.add_keywords(keywords)
     keywords.split("\r\n").each {|k| Keyword.create(word: k) unless Keyword.where(word: row[0]).count > 0}
   end
-  
+
   def self.get_allintitle
     self.all.each do |k|
       puts "********************"
       puts "currently scraping: " + k.word
       scraped = k.get_allintitle
-      
+
       puts "********************"
       if scraped
         # Sleep for couple seconds to avoid getting kicked out by Google
@@ -46,18 +46,18 @@ class Keyword < ActiveRecord::Base
       end
     end
   end
-  
+
   def switch_favorite
     update_attributes({favorite: !favorite})
   end
-  
+
   def get_allintitle(override=false)
-    
+
     if !ready_to_scrape?
       puts "Skipping: Less than one day since last scrape!"
       return false
     end unless override
-    
+
     begin
       require 'nokogiri'
       require 'open-uri'
@@ -66,10 +66,14 @@ class Keyword < ActiveRecord::Base
 
       # Build the url to use for Nokogiri
       url = @@base_url + @@quotes + word + @@quotes
-      doc = Nokogiri::HTML(open("#{url}"))
+      res = RestClient.get url, user_agent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.14; rv:68.0) Gecko/20100101 Firefox/68.0'
+      doc = Nokogiri::HTML(res.body)
+
+      puts doc
 
       # Strip the google results
       result = doc.css('#resultStats').text
+      puts "### #{result}"
       result = result.gsub("About ","")
       result = result.gsub(" results", "")
       result = result.gsub(",", "")
@@ -81,7 +85,7 @@ class Keyword < ActiveRecord::Base
       puts 'Nokogiri, we have a problem...'
       return false
     end
-    
+
     # Replaced with a new model for time-based analysis
     begin
       self.title_results.create({google_count: result.to_i})
@@ -92,49 +96,50 @@ class Keyword < ActiveRecord::Base
       puts 'ActiveRecord, we have a problem...'
       return false
     end
-    
+
   end
-  
+
   def allintitle
     title_results.order(created_at: :desc).first
   end
-  
+
   def allintitle_list_with_date
     title_results.order(created_at: :asc).map {|tr| ["Date.UTC(#{tr.created_at.year},#{tr.created_at.month - 1},#{tr.created_at.day})",tr.google_count] }
   end
-  
+
   def allintitle_list
     title_results.order(created_at: :asc).map {|tr| tr.google_count }
   end
-  
+
   def current_allintitle
     title_results.order(created_at: :desc).first
   end
-  
+
   def previous_allintitle
     title_results.order(created_at: :desc)[1].nil? ? first_allintitle : title_results.order(created_at: :desc)[1]
   end
-  
+
   def first_allintitle
     title_results.order(created_at: :asc).first
   end
-  
+
   def reset_allintitle
     title_results.each {|tr| tr.destroy }
   end
-  
+
   def days_since_last_scrape
     title_results.count > 0 ? (DateTime.now.to_date - current_allintitle.created_at.to_date).to_i : 0
   end
-  
+
   def ready_to_scrape?
-    title_results.count > 0 && (DateTime.now.to_i - current_allintitle.created_at.to_i) >= 1.day.to_i ? true : false
+    true
+    # title_results.count > 0 && (DateTime.now.to_i - current_allintitle.created_at.to_i) >= 1.day.to_i ? true : false
   end
-  
+
   def slope
     BigDecimal.new(LinearRegression.new(allintitle_list).slope.to_s)
   end
-  
+
   def competition_level
     case title_results.average(:google_count).to_i
     when 0
@@ -149,9 +154,9 @@ class Keyword < ActiveRecord::Base
       @@competition_levels[:high]
     end
   end
-  
+
   # def word
   #   '**OBFUSCATED NYANYANYA**'
   # end
-  
+
 end
